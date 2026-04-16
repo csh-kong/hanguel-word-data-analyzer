@@ -1,6 +1,6 @@
 # 한국어 형태소 분석 시각화
 
-CSV / Excel 파일을 업로드하면 한국어 형태소를 추출해 데이터를 시각화합니다.
+CSV / Excel / PDF 파일을 업로드하면 한국어 형태소를 추출해 데이터를 시각화합니다.
 
 - **워드클라우드** — 단어 빈도를 시각적으로 표현
 - **연관 분석** — 단어 간 동시 출현 관계를 네트워크 그래프로 표현
@@ -77,8 +77,8 @@ cd korean-wordcloud
 # Node.js 의존성 설치
 npm install --legacy-peer-deps
 
-# Python 의존성 설치 (형태소 분석 엔진)
-pip install kiwipiepy
+# Python 의존성 설치 (형태소 분석 엔진 + PDF 파싱)
+pip install kiwipiepy pypdf
 
 # 개발 서버 실행
 npm run dev
@@ -99,10 +99,29 @@ npm run dev
 
 ## 사용 방법
 
+### CSV / Excel
+
 1. **파일 업로드** — CSV 또는 Excel(.xlsx / .xls) 파일을 드래그하거나 클릭해서 선택
 2. **컬럼 선택** — 분석할 텍스트 컬럼을 선택
 3. **결과 확인** — 워드클라우드, 연관 분석, 단어 목록, 대표 문장 확인
 4. **PDF 저장** — 우측 상단 "PDF 저장" 버튼으로 전체 결과 내보내기
+
+### PDF 문서
+
+1. **파일 업로드** — PDF 파일을 드래그하거나 클릭해서 선택
+2. **자동 분석** — 컬럼 선택 없이 바로 분석 시작 (문장 컨텍스트 기반)
+3. **결과 확인** — 워드클라우드, 연관 분석, 단어 목록, 대표 문장 확인
+
+> PDF는 페이지별 텍스트를 문장 단위로 분리해 분석합니다. 이미지 기반(스캔) PDF는 텍스트 추출이 되지 않습니다.
+
+---
+
+## 분석 모드
+
+| 모드 | 적용 파일 | 공기(co-occurrence) 단위 |
+|---|---|---|
+| **rows** | CSV, Excel | 행(row) 단위 |
+| **document** | PDF | 문장 단위 (페이지를 문장으로 분리) |
 
 ---
 
@@ -111,4 +130,4 @@ npm run dev
 - **Frontend** — Next.js 14, TypeScript, Tailwind CSS
 - **시각화** — react-wordcloud, D3 force simulation
 - **형태소 분석** — kiwipiepy (Python)
-- **파일 파싱** — PapaParse (CSV), SheetJS (Excel)
+- **파일 파싱** — SheetJS (CSV / Excel), pypdf (PDF)
