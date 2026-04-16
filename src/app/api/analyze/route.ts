@@ -214,9 +214,11 @@ type Result = {
 
 export async function POST(req: NextRequest) {
   let text: string
+  let mode: 'rows' | 'document' = 'rows'
   try {
     const body = await req.json()
     text = body.text
+    if (body.mode === 'document') mode = 'document'
     if (typeof text !== 'string' || text.trim().length === 0) {
       return NextResponse.json({ error: '텍스트가 비어 있습니다.' }, { status: 400 })
     }
@@ -225,7 +227,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await analyzePython(text)
+    const result = await analyzePython(text, mode)
     return NextResponse.json({ ...result, engine: 'kiwi' })
   } catch {
     const result = analyzeJS(text)
@@ -233,10 +235,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function analyzePython(text: string): Promise<Result> {
+function analyzePython(text: string, mode: 'rows' | 'document' = 'rows'): Promise<Result> {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(process.cwd(), 'scripts', 'analyze_korean.py')
-    const proc = spawn('python3', [scriptPath], { timeout: 60_000 })
+    const args = mode === 'document' ? [scriptPath, '--document'] : [scriptPath]
+    const proc = spawn('python3', args, { timeout: 60_000 })
     let out = ''
     let err = ''
     proc.stdout.on('data', (c: Buffer) => { out += c.toString() })

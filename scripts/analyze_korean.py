@@ -549,13 +549,35 @@ def analyze_fallback(lines: list[str]) -> dict:
     }
 
 
+# ── 문장 분리 (document 모드 전용) ────────────────────────────────────────────
+# 마침표/느낌표/물음표 뒤 공백, 또는 줄바꿈을 문장 경계로 사용
+_SENT_SPLIT_RE = re.compile(r'(?<=[.!?])\s+|\n+')
+
+def _split_sentences(text: str, min_len: int = 8) -> list[str]:
+    """텍스트를 문장 단위로 분리. min_len 미만 조각은 버린다."""
+    parts = _SENT_SPLIT_RE.split(text)
+    return [p.strip() for p in parts if len(p.strip()) >= min_len]
+
+
 def main() -> None:
+    document_mode = '--document' in sys.argv
+
     text = sys.stdin.read().strip()
     if not text:
         print(json.dumps({'words': [], 'associations': [], 'positiveSentences': [], 'negativeSentences': [], 'suggestionSentences': []}, ensure_ascii=False))
         return
 
-    lines = [l for l in text.split('\n') if l.strip()]
+    if document_mode:
+        # PDF 등 문서: 페이지(줄) 단위 입력 → 문장 단위로 재분리
+        pages = [l for l in text.split('\n') if l.strip()]
+        lines = []
+        for page in pages:
+            lines.extend(_split_sentences(page))
+        if not lines:
+            # 문장 분리 실패 시 페이지 단위로 폴백
+            lines = pages
+    else:
+        lines = [l for l in text.split('\n') if l.strip()]
 
     try:
         result = analyze_with_kiwi(lines)

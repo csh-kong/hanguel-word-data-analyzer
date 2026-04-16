@@ -8,9 +8,14 @@ import type { ParsedFile, WordFreq, Association } from '@/types'
 
 type Step = 'upload' | 'select' | 'result'
 
+function isPdfOnly(files: ParsedFile[]) {
+  return files.length > 0 && files.every((f) => f.filename.toLowerCase().endsWith('.pdf'))
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>('upload')
   const [parsedFiles, setParsedFiles] = useState<ParsedFile[]>([])
+  const [pdfMode, setPdfMode] = useState(false)
   const [words, setWords] = useState<WordFreq[]>([])
   const [associations, setAssociations] = useState<Association[]>([])
   const [engine, setEngine] = useState<string>('')
@@ -22,18 +27,27 @@ export default function Home() {
 
   function handleFilesParsed(files: ParsedFile[]) {
     setParsedFiles(files)
-    setStep('select')
     setError(null)
+
+    if (isPdfOnly(files)) {
+      // PDF 전용: 컬럼 선택 건너뜀 — 모든 페이지를 이어붙여 문서 컨텍스트 분석
+      setPdfMode(true)
+      const text = files.flatMap((f) => f.rows.map((r) => r['내용'] ?? '')).join('\n')
+      handleAnalyze(text, 'document')
+    } else {
+      setPdfMode(false)
+      setStep('select')
+    }
   }
 
-  async function handleAnalyze(text: string) {
+  async function handleAnalyze(text: string, mode: 'rows' | 'document' = 'rows') {
     setLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, mode }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -57,6 +71,7 @@ export default function Home() {
   function handleReset() {
     setStep('upload')
     setParsedFiles([])
+    setPdfMode(false)
     setWords([])
     setAssociations([])
     setEngine('')
@@ -66,11 +81,16 @@ export default function Home() {
     setError(null)
   }
 
-  const STEPS: { key: Step; label: string }[] = [
-    { key: 'upload', label: '파일 업로드' },
-    { key: 'select', label: '컬럼 선택' },
-    { key: 'result', label: '결과' },
-  ]
+  const STEPS: { key: Step; label: string }[] = pdfMode
+    ? [
+        { key: 'upload', label: '파일 업로드' },
+        { key: 'result', label: '결과' },
+      ]
+    : [
+        { key: 'upload', label: '파일 업로드' },
+        { key: 'select', label: '컬럼 선택' },
+        { key: 'result', label: '결과' },
+      ]
 
   return (
     <main className="min-h-screen flex flex-col items-center px-4 py-12">
@@ -86,9 +106,9 @@ export default function Home() {
       {/* Step indicator */}
       <div className="flex items-center gap-3 mb-10">
         {STEPS.map(({ key, label }, i) => {
-          const isActive = step === key
+          const isActive = step === key || (pdfMode && loading && key === 'result')
           const isDone =
-            (key === 'upload' && (step === 'select' || step === 'result')) ||
+            (key === 'upload' && (step === 'select' || step === 'result' || (pdfMode && loading))) ||
             (key === 'select' && step === 'result')
           return (
             <div key={key} className="flex items-center gap-3">
@@ -117,7 +137,7 @@ export default function Home() {
       </div>
 
       <div className="w-full max-w-3xl">
-        {step === 'upload' && <FileUpload onParsed={handleFilesParsed} />}
+        {step === 'upload' && !loading && <FileUpload onParsed={handleFilesParsed} />}
 
         {step === 'select' && parsedFiles.length > 0 && (
           <ColumnSelector
@@ -137,7 +157,7 @@ export default function Home() {
             negativeSentences={negativeSentences}
             suggestionSentences={suggestionSentences}
             onReset={handleReset}
-            onBackToSelect={() => setStep('select')}
+            onBackToSelect={pdfMode ? handleReset : () => setStep('select')}
           />
         )}
 

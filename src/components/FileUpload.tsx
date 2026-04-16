@@ -9,7 +9,7 @@ type Props = {
 }
 
 const MAX_FILE_SIZE_MB = 20
-const ACCEPTED_EXTS = ['csv', 'xlsx', 'xls']
+const ACCEPTED_EXTS = ['csv', 'xlsx', 'xls', 'pdf']
 
 function detectCsvEncoding(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
@@ -22,13 +22,25 @@ function detectCsvEncoding(buffer: ArrayBuffer): string {
   }
 }
 
+async function parsePdfFile(file: File): Promise<ParsedFile> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch('/api/parse-pdf', { method: 'POST', body: formData })
+  const json = await res.json() as { pages?: string[]; error?: string }
+
+  if (!res.ok || json.error) throw new Error(json.error ?? 'PDF 파싱 실패')
+
+  const rows = (json.pages ?? []).map((text) => ({ 내용: text }))
+  return { id: `${Date.now()}-${Math.random()}`, filename: file.name, headers: ['내용'], rows }
+}
+
 function parseOneFile(file: File): Promise<ParsedFile> {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  if (!ACCEPTED_EXTS.includes(ext)) return Promise.reject(new Error('지원하지 않는 형식입니다.'))
+  if (ext === 'pdf') return parsePdfFile(file)
+
   return new Promise((resolve, reject) => {
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-    if (!ACCEPTED_EXTS.includes(ext)) {
-      reject(new Error('지원하지 않는 형식입니다.'))
-      return
-    }
     const reader = new FileReader()
     reader.onload = (e) => {
       try {
@@ -139,7 +151,7 @@ export default function FileUpload({ onParsed }: Props) {
           ref={inputRef}
           type="file"
           multiple
-          accept=".csv,.xlsx,.xls"
+          accept=".csv,.xlsx,.xls,.pdf"
           className="sr-only"
           onChange={handleInputChange}
         />
@@ -151,7 +163,7 @@ export default function FileUpload({ onParsed }: Props) {
             파일을 여기에 드래그하거나 클릭해서 선택하세요
           </p>
           <p className="mt-1 text-zinc-500 text-sm">
-            CSV, Excel(.xlsx / .xls) · 여러 파일 동시 업로드 가능 · 최대 {MAX_FILE_SIZE_MB}MB/개
+            CSV, Excel(.xlsx / .xls), PDF · 여러 파일 동시 업로드 가능 · 최대 {MAX_FILE_SIZE_MB}MB/개
           </p>
         </div>
         {dragging && (
@@ -170,11 +182,15 @@ export default function FileUpload({ onParsed }: Props) {
               className="flex items-center justify-between rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-lg shrink-0">📄</span>
+                <span className="text-lg shrink-0">
+                  {f.filename.endsWith('.pdf') ? '📑' : '📄'}
+                </span>
                 <div className="min-w-0">
                   <p className="text-sm text-white truncate">{f.filename}</p>
                   <p className="text-xs text-zinc-500">
-                    {f.rows.length.toLocaleString()}행 · {f.headers.length}개 컬럼
+                    {f.filename.endsWith('.pdf')
+                      ? `${f.rows.length.toLocaleString()}페이지`
+                      : `${f.rows.length.toLocaleString()}행 · ${f.headers.length}개 컬럼`}
                   </p>
                 </div>
               </div>
